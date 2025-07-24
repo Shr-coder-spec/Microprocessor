@@ -34,14 +34,22 @@ begin
 pc =0;
 for(sd = 0; sd <32; sd=sd+1)//initialising the regbank
 reg_bank[sd] = 32'b0;
-//$readmemh("program.hex", instruction);
-    instruction[0] = 32'h06400093; // addi x1, x0, 100
-    instruction[1] = 32'h02A00113; // addi x2, x0, 42
-    instruction[2] = 32'h0020A023; // sw x2, 0(x1)
-    instruction[3] = 32'h0000A183; // lw x3, 0(x1)
-    instruction[4] = 32'h00118193; // addi x4, x3, 1
-        // Optional: zero-fill remaining memory
-        for (sd = 5; sd < 1024; sd = sd + 1) begin
+        for (sd = 10; sd < 1024; sd = sd + 1) begin
+            instruction[sd] = 32'h00000013;
+        end
+$readmemh("program.hex", instruction);
+        
+/*     instruction[0] = 32'h06400513; 
+    instruction[1] = 32'h00a00113; // addi x2, x0, 1
+    instruction[2] = 32'h002081b3; // bne x1, x2, +8 (not taken)
+    instruction[3] = 32'h40118233; // addi x3, x0, 42
+    instruction[4] = 32'h00220463; // beq x1, x2, +8 (taken)
+    instruction[5] = 32'h001242b3; // addi x3, x0, 99 (skipped)
+    instruction[6] = 32'h00029463; // addi x4, x0, 123
+    instruction[7] = 32'h06300313;
+    instruction[8] = 32'h004003ef;
+    instruction[9] = 32'h0ff3e413; */
+        for (sd = 10; sd < 1024; sd = sd + 1) begin
             instruction[sd] = 32'h00000013;
         end
 depc=0; fdi=32'h00000013; fdpc= 0; dei = 32'h00000013; 
@@ -49,6 +57,7 @@ de_rs1 =0; de_rs2 =0; emi = 32'h00000013; mbi = 32'h00000013;
 emo = 0; mbo = 0; mbl = 0; em_rs2 = 0;
 end
 
+localparam Noop =  32'h00000013;
 wire comparator;
 wire [4:0] rs1, rs2;
 wire [31:0] inst, alu_out;
@@ -56,9 +65,14 @@ wire overflow, taken, ex_stall, id_stall, zero;
 assign inst = instruction[pc/4];
 assign rs1 = fdi[19:15];
 assign rs2 = fdi[24:20];
-wire[31:0] rs1_val, rs2_val;
-assign rs1_val = reg_bank[rs1];
-assign rs2_val = reg_bank[rs2];
+wire[31:0] rs1_val, rs2_val, write_back_data;
+
+
+assign write_back_data = (mbi[6:0]==7'b0000011)? mbl : mbo;
+assign rs1_val = ((rs1 == mbi[11:7]) && wen && (mbi[11:7] != 5'd0))? write_back_data : reg_bank[rs1];
+assign rs2_val = ((rs2 == mbi[11:7]) && wen && (mbi[11:7] != 5'd0))? write_back_data : reg_bank[rs2];
+
+
 wire [31:0] c_rs1, c_rs2, a_rs1, a_rs2;
 wire [9:0] branch_target, pc_updated;
 jump j1(clk, inst, pc, comparator, pc_updated, taken);
@@ -107,8 +121,6 @@ end
 
 else
 begin
-fdi<= inst; fdpc<=pc; fdt<=taken;
-dei<=fdi; depc<=fdpc; de_rs1<= rs1_val; de_rs2<= rs2_val;
 emi<=dei; emo<=alu_out; em_rs2<= de_rs2;
 mbi<=emi; mbl<=load_value; mbo<= emo;  // make sure to erase in case of comparator high
 
@@ -116,9 +128,14 @@ if(wen)
 reg_bank[w_addr]<= w_data;
 
 if(comparator)
+begin
 pc<= branch_target;
-else
+fdi<= Noop; dei<= Noop; de_rs1<= 0; de_rs2<= 0;
+end
+else begin
 pc<= pc_updated;
+fdi<= inst; fdpc<=pc; fdt<=taken;
+dei<=fdi; depc<=fdpc; de_rs1<= rs1_val; de_rs2<= rs2_val; end
 end
 end
 endmodule
