@@ -24,30 +24,32 @@ module jump(input clk, input [31:0] i, input [9:0] pc, input comparator, output 
 //jump-2, branch case
 reg [255:0] bp;
 initial
-begin bp = 256'b0; end
+begin bp = {256{1'b1}}; end
 wire [7:0] address = pc[7:0];
 wire [6:0] opcode = i[6:0];
-wire [20:0] imm;
-assign imm = {i[31],         // imm[20]
-                i[19:12],     // imm[19:12]
-                i[20],        // imm[11]
-                i[30:21],     // imm[10:1]
-                1'b0};                  // imm[0] always zero (word-aligned)
-// Sign-extend to 32-bit
-wire [31:0] imm_J;
+wire [12:0] immB_raw;
+assign immB_raw = {
+    i[31],        // imm[12]
+    i[7],         // imm[11]
+    i[30:25],     // imm[10:5]
+    i[11:8],      // imm[4:1]
+    1'b0          // imm[0], always 0 (aligned)
+};
+
+wire [31:0] immB;
+assign immB = {{19{immB_raw[12]}}, immB_raw};  // sign-extend to 32 bits
 reg [9:0] store_pc;
-assign imm_J = {{11{imm[20]}}, imm};  // sign-extend to 32-bit
 always @(*)
 begin
 //if(comparator)
 //pc_updated = branch_target;
 //else
 //begin
-if(opcode == 7'b1100111) pc_updated = pc+ imm_J;
+if(opcode == 7'b1100111) pc_updated = pc+ immB;
 else if(opcode == 7'b1100011)
 begin
     if(bp[address])
-    begin pc_updated = pc + imm_J; taken = 1; end
+    begin pc_updated = pc + immB; taken = 1; end
     else
     begin pc_updated = pc + 4; taken = 0; end 
 end
