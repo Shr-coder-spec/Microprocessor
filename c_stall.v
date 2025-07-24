@@ -31,27 +31,24 @@ module c_stall(
     wire [4:0] if_id_rs1    = if_id_instr[19:15];
     wire [4:0] if_id_rs2    = if_id_instr[24:20];
 
-    wire [6:0] id_ex_opcode = id_ex_instr[6:0];
+    wire [6:0] if_id_opcode = if_id_instr[6:0];
     wire [4:0] id_ex_rd     = id_ex_instr[11:7];
 
     wire [6:0] ex_mem_opcode = ex_mem_instr[6:0];
     wire [4:0] ex_mem_rd     = ex_mem_instr[11:7];
 
-    // Detect loads in ID/EX and EX/MEM stages
-    wire id_ex_is_load  = (id_ex_opcode  == 7'b0000011); // load opcodes (LW)
     wire ex_mem_is_load = (ex_mem_opcode == 7'b0000011); // load opcodes (LW)
-
     always @(*) begin
         id_stall = 1'b0; // default: no stall
-        if(id_ex_opcode == 7'b1100011) begin //only if instruction is a comparator
-        // Stall if ID/EX stage has load and rd matches rs1 or rs2 of branch
-        if (id_ex_is_load && (id_ex_rd != 5'b00000) &&
+        if(if_id_opcode == 7'b1100011) begin //only if instruction is a comparator
+        
+        if ((id_ex_rd != 5'b00000) &&
            ((id_ex_rd == if_id_rs1) || (id_ex_rd == if_id_rs2))) begin
             id_stall = 1'b1;
         end
-        // Stall if EX/MEM stage has load and rd matches rs1 or rs2 of branch
-        else if (ex_mem_is_load && (ex_mem_rd != 5'b00000) &&
-                ((ex_mem_rd == if_id_rs1) || (ex_mem_rd == if_id_rs2))) begin
+        
+        else if ((ex_mem_rd != 5'b00000) &&
+                ((ex_mem_rd == if_id_rs1) || (ex_mem_rd == if_id_rs2))&& ex_mem_is_load) begin
             id_stall = 1'b1;
         end end
     end
