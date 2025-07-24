@@ -1,68 +1,53 @@
-`timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 11.06.2025 12:44:43
-// Design Name: 
-// Module Name: comparator
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
-
-module comparator(
-    input  wire [31:0] i,            // full 32-bit instruction
-    input  wire [31:0] rs1_val,     // value of rs1
-    input  wire [31:0] rs2_val, 
-    input taken,
-    input pc,     
-    output reg  c,                    // output only when conditions dont match
-    output reg [9:0] branch_target                  
+module c_forwarding(
+    input  wire [31:0] if_id_instr,     // current branch instr
+    input  wire [31:0] id_ex_instr,     // previous instr (in EX)
+    input  wire [31:0] ex_mem_instr,    // EX/MEM
+    input  wire [31:0] mem_wb_instr,    // MEM/WB
+    //input  wire [31:0] id_ex_rd_val,   // value of rd in ID/EX
+    input  wire [31:0] ex_mem_rd_val,  // value of rd in EX/MEM
+    input  wire [31:0] mbo,  // value of rd in MEM/WB
+    input [31:0] mbl,
+    input  wire [31:0] rs1_val_if_id,  // value read from regfile for rs1
+    input  wire [31:0] rs2_val_if_id,  // value read from regfile for rs2
+    output reg  [31:0] cmp_operand_a,  // final value for comparator operand A (rs1)
+    output reg  [31:0] cmp_operand_b   // final value for comparator operand B (rs2)
 );
 
-    wire [6:0]  opcode;
-    wire [2:0]  funct3;
-    wire [31:0] branch_offset;
-    assign branch_offset = {{19{i[31]}}, i[31], i[7], i[30:25], i[11:8], 1'b0};
-    assign opcode = i[6:0];
-    assign funct3 = i[14:12];
-    reg r;
+    // Extract fields
+    wire [4:0] if_id_rs1   = if_id_instr[19:15];
+    wire [4:0] if_id_rs2   = if_id_instr[24:20];
 
-    always @(*) begin
-        r = 0;  // Default: branch not taken
+    wire [4:0] id_ex_rd    = id_ex_instr[11:7];
+    wire [4:0] ex_mem_rd   = ex_mem_instr[11:7];
+    wire [4:0] mem_wb_rd   = mem_wb_instr[11:7];
 
-        if (opcode == 7'b1100011) begin // Branch instructions
-            case(funct3)
-                3'b000: r = (rs1_val == rs2_val); // BEQ
-                3'b001: r = (rs1_val != rs2_val); // BNE
-                3'b100: r = ($signed(rs1_val) < $signed(rs2_val)); // BLT (signed)
-                3'b101: r = ($signed(rs1_val) >= $signed(rs2_val)); // BGE (signed)
-                3'b110: r = (rs1_val < rs2_val); // BLTU (unsigned)
-                3'b111: r = (rs1_val >= rs2_val); // BGEU (unsigned)    
-                default: r = 0;
-            endcase
-        end
-        else begin
-            r = 0; // Not a branch instruction
-        end
-        if(r==1)
-        branch_target = pc + branch_offset;
-        else
-        branch_target = pc + 4;
-    
-    if(r!=taken && opcode == 7'b1100011) // decision point (right decision has been taken or no) only for branch
-    c=1;
+    wire id_ex_regwrite  = (id_ex_rd != 5'b00000); 
+    wire ex_mem_regwrite = (ex_mem_rd != 5'b00000); 
+    wire mem_wb_regwrite = (mem_wb_rd != 5'b00000); 
+    reg [31:0] mem_wb_rd_val;
+    always @(*)
+    begin
+    if(mem_wb_instr[6:0]==7'b0000011)
+    mem_wb_rd_val = mbl;
     else
-    c=0;
-end   
-endmodule
+    mem_wb_rd_val = mbo;
+    end
+    always @(*) begin
+        // Default: get from regfile
+        cmp_operand_a = rs1_val_if_id;
+        cmp_operand_b = rs2_val_if_id;
 
+        // Forward for rs1
+        if (ex_mem_regwrite && (ex_mem_rd == if_id_rs1))
+            cmp_operand_a = ex_mem_rd_val;
+        else if (mem_wb_regwrite && (mem_wb_rd == if_id_rs1))
+            cmp_operand_a = mem_wb_rd_val;
+
+        // Forward for rs2
+        if (ex_mem_regwrite && (ex_mem_rd == if_id_rs2))
+            cmp_operand_b = ex_mem_rd_val;
+        else if (mem_wb_regwrite && (mem_wb_rd == if_id_rs2))
+            cmp_operand_b = mem_wb_rd_val;
+    end
+
+endmodule
