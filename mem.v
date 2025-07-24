@@ -38,15 +38,16 @@ initial begin
     // Extract opcode and funct3
     wire [6:0] opcode = ex_mem_instr[6:0];
     wire [2:0] funct3 = ex_mem_instr[14:12];
-
+    reg y;
     always @(*) begin
         mem_read_data = mem_addr; // default
-
+        y = 0;
         case (opcode)
             // LOADS
             7'b0000011: begin // Load
                 case (funct3)
                     3'b010: begin // LW (Load Word)
+                        y = 1;
                         mem_read_data = memory[mem_addr];
                     end
                     3'b001: begin // LH (Load Halfword, signed)
