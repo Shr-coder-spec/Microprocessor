@@ -46,14 +46,6 @@ module mem_forward (
         if ((rd_mem_wb == rs2_ex_mem) && (rd_mem_wb != 5'd0)) begin
             store_data_final = mem_wb_output; 
         end
-        // EX/MEM forwarding if necessary (e.g., ALU output forwarding)
-        // Only apply if EX/MEM destination is the same as rs2
-        // (Only needed if you're doing multi-ALU forwarding)
-        // Optional: uncomment this if you have it
-        /*
-        else if ((rd_ex_mem == rs2_ex_mem) && (rd_ex_mem != 5'd0)) begin
-            store_data_final = ex_mem_output;
-        end*/
         
     end
 
